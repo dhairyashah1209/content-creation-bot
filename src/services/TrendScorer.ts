@@ -175,6 +175,9 @@ export class TrendScorer {
     let newlyScored = 0;
     let reScored = 0;
 
+    // Build all snapshot rows first, then insert in a single batch query
+    const snapshotValues: (typeof trendSnapshots.$inferInsert)[] = [];
+
     for (const post of recentPosts) {
       const hashtagSet = (post.hashtags ?? []) as string[];
       const topHashtags = hashtagSet.slice(0, 5);
@@ -211,7 +214,7 @@ export class TrendScorer {
         ? parseFloat((breakdown.engagementVelocity - prev.velocityScore).toFixed(3))
         : null;
 
-      await db.insert(trendSnapshots).values({
+      snapshotValues.push({
         postId: post.id,
         likesAtSnapshot: post.likeCount,
         commentsAtSnapshot: post.commentCount,
@@ -229,11 +232,13 @@ export class TrendScorer {
         velocityDelta: velocityDelta != null ? String(velocityDelta) : null,
       });
 
-      if (prev != null) {
-        reScored++;
-      } else {
-        newlyScored++;
-      }
+      if (prev != null) reScored++;
+      else newlyScored++;
+    }
+
+    // Single batch insert — 1 round-trip regardless of post count
+    if (snapshotValues.length > 0) {
+      await db.insert(trendSnapshots).values(snapshotValues);
     }
 
     return { newlyScored, reScored };

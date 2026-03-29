@@ -1,7 +1,7 @@
 import { db } from "@/db/client";
 import { rawPosts, trackedTopics } from "@/db/schema";
 import { ApifyService } from "./ApifyService";
-import { eq, and, isNotNull } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 
 export class IngestionService {
   private apify: ApifyService;
@@ -25,10 +25,12 @@ export class IngestionService {
   async runForTopic(topic: typeof trackedTopics.$inferSelect): Promise<{
     topicId: string;
     inserted: number;
+    updated: number;
     skipped: number;
     error?: string;
   }> {
     let inserted = 0;
+    let updated = 0;
     let skipped = 0;
 
     try {
@@ -46,7 +48,8 @@ export class IngestionService {
         }
 
         try {
-          await db
+          // xmax = 0 on the returned row means it was a fresh INSERT (not an UPDATE)
+          const [result] = await db
             .insert(rawPosts)
             .values({
               externalId: post.id,
@@ -72,16 +75,28 @@ export class IngestionService {
             .onConflictDoUpdate({
               target: rawPosts.externalId,
               set: {
-                likeCount: post.likesCount ?? 0,
-                commentCount: post.commentsCount ?? 0,
-                playCount: post.videoViewCount ?? null,
-                authorFollowers: post.followersCount ?? null,
+                // Use existing column value as fallback so a null from Apify
+                // never overwrites a valid count we already stored
+                likeCount: post.likesCount != null
+                  ? post.likesCount
+                  : sql`${rawPosts.likeCount}`,
+                commentCount: post.commentsCount != null
+                  ? post.commentsCount
+                  : sql`${rawPosts.commentCount}`,
+                playCount: post.videoViewCount != null
+                  ? post.videoViewCount
+                  : sql`${rawPosts.playCount}`,
+                authorFollowers: post.followersCount != null
+                  ? post.followersCount
+                  : sql`${rawPosts.authorFollowers}`,
                 rawPayload: post as unknown as Record<string, unknown>,
                 fetchedAt: new Date(),
               },
-            });
+            })
+            .returning({ id: rawPosts.id, xmax: sql<string>`xmax::text` });
 
-          inserted++;
+          if (result?.xmax === "0") inserted++;
+          else updated++;
         } catch {
           skipped++;
         }
@@ -95,9 +110,9 @@ export class IngestionService {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       console.error(`[Ingestion] Failed topic ${topic.value}:`, err);
-      return { topicId: topic.id, inserted, skipped, error: message };
+      return { topicId: topic.id, inserted, updated, skipped, error: message };
     }
 
-    return { topicId: topic.id, inserted, skipped };
+    return { topicId: topic.id, inserted, updated, skipped };
   }
 }
