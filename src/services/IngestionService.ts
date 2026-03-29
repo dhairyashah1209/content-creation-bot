@@ -69,7 +69,17 @@ export class IngestionService {
               postedAt,
               rawPayload: post as unknown as Record<string, unknown>,
             })
-            .onConflictDoNothing(); // Skip duplicates by externalId
+            .onConflictDoUpdate({
+              target: rawPosts.externalId,
+              set: {
+                likeCount: post.likesCount ?? 0,
+                commentCount: post.commentsCount ?? 0,
+                playCount: post.videoViewCount ?? null,
+                authorFollowers: post.followersCount ?? null,
+                rawPayload: post as unknown as Record<string, unknown>,
+                fetchedAt: new Date(),
+              },
+            });
 
           inserted++;
         } catch {
