@@ -50,6 +50,9 @@ importers:
       postgres:
         specifier: ^3.4.8
         version: 3.4.8
+      proxy-agent:
+        specifier: ^7.0.0
+        version: 7.0.0
       react:
         specifier: 19.2.4
         version: 19.2.4
@@ -1601,6 +1604,10 @@ packages:
     resolution: {integrity: sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ==}
     engines: {node: '>= 14'}
 
+  agent-base@8.0.0:
+    resolution: {integrity: sha512-QT8i0hCz6C/KQ+KTAbSNwCHDGdmUJl2tp2ZpNlGSWCfhUNVbYG2WLE3MdZGBAgXPV4GAvjGMxo+C1hroyxmZEg==}
+    engines: {node: '>= 14'}
+
   ajv-formats@3.0.1:
     resolution: {integrity: sha512-8iUql50EUR+uUcdRQ3HDqa6EVyo3docL8g5WJ3FNcWmu62IbkGUue/pEyLBW8VGKKucTPgqeks4fIU1DA4yowQ==}
     peerDependencies:
@@ -1948,6 +1955,10 @@ packages:
     resolution: {integrity: sha512-7hvf7/GW8e86rW0ptuwS3OcBGDjIi6SZva7hCyWC0yYry2cOPmLIjXAUHI6DK2HsnwJd9ifmt57i8eV2n4YNpw==}
     engines: {node: '>= 14'}
 
+  data-uri-to-buffer@7.0.0:
+    resolution: {integrity: sha512-CuRUx0TXGSbbWdEci3VK/XOZGP3n0P4pIKpsqpVtBqaIIuj3GKK8H45oAqA4Rg8FHipc+CzRdUzmD4YQXxv66Q==}
+    engines: {node: '>= 14'}
+
   data-view-buffer@1.0.2:
     resolution: {integrity: sha512-EmKO5V3OLXh1rtK2wgXRansaK1/mtVdTUEiEI0W8RkvgT05kfxaH29PliLnpLP73yYO6142Q72QNa8Wx/A5CqQ==}
     engines: {node: '>= 0.4'}
@@ -2021,6 +2032,12 @@ packages:
   degenerator@5.0.1:
     resolution: {integrity: sha512-TllpMR/t0M5sqCXfj85i4XaAzxmS5tVA16dqvdkMwGmzI+dXLXnw3J+3Vdv7VKw+ThlTMboK6i9rnZ6Nntj5CQ==}
     engines: {node: '>= 14'}
+
+  degenerator@6.0.0:
+    resolution: {integrity: sha512-j5MdXdefrecJeSqTpUrgZd4fBsD2IxZx0JlJD+n1Q7+aTf7/HcyXSfHsicPW6ekPurX159v1ZYla6OJgSPh2Dw==}
+    engines: {node: '>= 14'}
+    peerDependencies:
+      quickjs-wasi: ^0.0.1
 
   delayed-stream@1.0.0:
     resolution: {integrity: sha512-ZySD7Nf91aLB0RxL4KGrKHBXl7Eds1DAmEdcoVawXnLD7SDhpNgtuII2aAkg7a7QS41jxPSZ17p4VdGnMHk3MQ==}
@@ -2573,6 +2590,10 @@ packages:
     resolution: {integrity: sha512-b1O07XYq8eRuVzBNgJLstU6FYc1tS6wnMtF1I1D9lE8LxZSOGZ7LhxN54yPP6mGw5f2CkXY2BQUL9Fx41qvcIg==}
     engines: {node: '>= 14'}
 
+  get-uri@7.0.0:
+    resolution: {integrity: sha512-ZsC7KQxm1Hra8yO0RvMZ4lGJT7vnBtSNpEHKq39MPN7vjuvCiu1aQ8rkXUaIXG1y/TSDez97Gmv04ibnYqCp/A==}
+    engines: {node: '>= 14'}
+
   glob-parent@5.1.2:
     resolution: {integrity: sha512-AOIgSQCepiJYwP3ARnGx+5VnTu2HBYdzbGP45eLw1vr3zB3vZLeyed1sC9hnbcOc9/SrMyM5RPQrkGz4aS9Zow==}
     engines: {node: '>= 6'}
@@ -2652,8 +2673,16 @@ packages:
     resolution: {integrity: sha512-T1gkAiYYDWYx3V5Bmyu7HcfcvL7mUrTWiM6yOfa3PIphViJ/gFPbvidQ+veqSOHci/PxBcDabeUNCzpOODJZig==}
     engines: {node: '>= 14'}
 
+  http-proxy-agent@8.0.0:
+    resolution: {integrity: sha512-7pose0uGgrCJeH2Qh4JcNhWZp3u/oNrWjNYDK4ydOLxOpTw8V8ogHFAmkz0VWq96JBFj4umVJpvmQi287rSYLg==}
+    engines: {node: '>= 14'}
+
   https-proxy-agent@7.0.6:
     resolution: {integrity: sha512-vK9P5/iUfdl95AI+JVyUuIcVtd4ofvtrOr3HNtM2yxC9bnMbEdp3x01OhQNnjb8IJYi38VlTE3mBXwcfvywuSw==}
+    engines: {node: '>= 14'}
+
+  https-proxy-agent@8.0.0:
+    resolution: {integrity: sha512-YYeW+iCnAS3xhvj2dvVoWgsbca3RfQy/IlaNHHOtDmU0jMqPI9euIq3Y9BJETdxk16h9NHHCKqp/KB9nIMStCQ==}
     engines: {node: '>= 14'}
 
   human-signals@2.1.0:
@@ -3341,9 +3370,19 @@ packages:
     resolution: {integrity: sha512-TEB8ESquiLMc0lV8vcd5Ql/JAKAoyzHFXaStwjkzpOpC5Yv+pIzLfHvjTSdf3vpa2bMiUQrg9i6276yn8666aA==}
     engines: {node: '>= 14'}
 
+  pac-proxy-agent@8.0.0:
+    resolution: {integrity: sha512-HyCoVbyQ/nbVlQ/R6wBu0YXhbG2oAnEK5BQ3xMyj1OffQmU5NoOnpLzgPlKHaobUzz5NK0+AZHby4TdydAEBUA==}
+    engines: {node: '>= 14'}
+
   pac-resolver@7.0.1:
     resolution: {integrity: sha512-5NPgf87AT2STgwa2ntRMr45jTKrYBGkVU36yT0ig/n/GMAa3oPqhZfIQ2kMEimReg0+t9kZViDVZ83qfVUlckg==}
     engines: {node: '>= 14'}
+
+  pac-resolver@8.0.0:
+    resolution: {integrity: sha512-SVNzOxVq2zuTew3WAt7U8UghwzJzuWYuJryd3y8FxyLTZdjVoCzY8kLP39PpEqQCDvlMWdQXwViu0sYT3eiU2w==}
+    engines: {node: '>= 14'}
+    peerDependencies:
+      quickjs-wasi: ^0.0.1
 
   parent-module@1.0.1:
     resolution: {integrity: sha512-GQ2EWRpQV8/o+Aw8YqtfZZPfNRWZYkbidE9k5rpl/hC3vtHHBfGm2Ifi6qWV+coDGkrUKZAxE3Lot5kcsRlh+g==}
@@ -3474,6 +3513,10 @@ packages:
     resolution: {integrity: sha512-TmatMXdr2KlRiA2CyDu8GqR8EjahTG3aY3nXjdzFyoZbmB8hrBsTyMezhULIXKnC0jpfjlmiZ3+EaCzoInSu/A==}
     engines: {node: '>= 14'}
 
+  proxy-agent@7.0.0:
+    resolution: {integrity: sha512-okTgt79rHTvMHkr/Ney5rZpgCHh3g1g3tI5uhkgN5b7OeI3n0Q/ui1uv9OdrnZNJM9WIZJqZPh/UJs+YtO/TMQ==}
+    engines: {node: '>= 14'}
+
   proxy-from-env@1.1.0:
     resolution: {integrity: sha512-D+zkORCbA9f1tdWRK0RaCR3GPv50cMxcrz4X8k5LTSUD1Dkw47mKJEZQNunItRTkWwgtaUSo1RVFRIG9ZXiFYg==}
 
@@ -3491,6 +3534,9 @@ packages:
 
   queue-microtask@1.2.3:
     resolution: {integrity: sha512-NuaNSa6flKT5JaSYQzJok04JzTL1CA6aGhv5rfLW3PgqA+M2ChpZQnAC8h8i4ZFkBS8X5RqkDBHA7r4hej3K9A==}
+
+  quickjs-wasi@0.0.1:
+    resolution: {integrity: sha512-fBWNLTBkxkLAhe1AzF1hyXEvuA+N+vV1WMP2D6iiMUblvmOt8Pp5t8zUcgvz7aYA1ldUdxDlgUse15dmcKjkNg==}
 
   range-parser@1.2.1:
     resolution: {integrity: sha512-Hrgsx+orqoygnmhFbKaHE6c296J+HTAQXoxEF6gNupROmmGJRoyzfG3ccAveqCBrwr/2yxQ5BVd/GTl5agOwSg==}
@@ -3712,6 +3758,10 @@ packages:
 
   socks-proxy-agent@8.0.5:
     resolution: {integrity: sha512-HehCEsotFqbPW9sJ8WVYB6UbmIMv7kUUORIF2Nncq4VQvBfNBLibW9YZR5dlYCSUhwcD628pRllm7n+E+YTzJw==}
+    engines: {node: '>= 14'}
+
+  socks-proxy-agent@9.0.0:
+    resolution: {integrity: sha512-fFlbMlfsXhK02ZB8aZY7Hwxh/IHBV9b1Oq9bvBk6tkFWXvdAxUgA0wbw/NYR5liU3Y5+KI6U4FH3kYJt9QYv0w==}
     engines: {node: '>= 14'}
 
   socks@2.8.7:
@@ -5365,6 +5415,8 @@ snapshots:
 
   agent-base@7.1.4: {}
 
+  agent-base@8.0.0: {}
+
   ajv-formats@3.0.1(ajv@8.18.0):
     optionalDependencies:
       ajv: 8.18.0
@@ -5733,6 +5785,8 @@ snapshots:
 
   data-uri-to-buffer@6.0.2: {}
 
+  data-uri-to-buffer@7.0.0: {}
+
   data-view-buffer@1.0.2:
     dependencies:
       call-bound: 1.0.4
@@ -5795,6 +5849,13 @@ snapshots:
       ast-types: 0.13.4
       escodegen: 2.1.0
       esprima: 4.0.1
+
+  degenerator@6.0.0(quickjs-wasi@0.0.1):
+    dependencies:
+      ast-types: 0.13.4
+      escodegen: 2.1.0
+      esprima: 4.0.1
+      quickjs-wasi: 0.0.1
 
   delayed-stream@1.0.0: {}
 
@@ -6519,6 +6580,14 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  get-uri@7.0.0:
+    dependencies:
+      basic-ftp: 5.2.0
+      data-uri-to-buffer: 7.0.0
+      debug: 4.4.3
+    transitivePeerDependencies:
+      - supports-color
+
   glob-parent@5.1.2:
     dependencies:
       is-glob: 4.0.3
@@ -6589,9 +6658,23 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  http-proxy-agent@8.0.0:
+    dependencies:
+      agent-base: 8.0.0
+      debug: 4.4.3
+    transitivePeerDependencies:
+      - supports-color
+
   https-proxy-agent@7.0.6:
     dependencies:
       agent-base: 7.1.4
+      debug: 4.4.3
+    transitivePeerDependencies:
+      - supports-color
+
+  https-proxy-agent@8.0.0:
+    dependencies:
+      agent-base: 8.0.0
       debug: 4.4.3
     transitivePeerDependencies:
       - supports-color
@@ -7249,10 +7332,29 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  pac-proxy-agent@8.0.0:
+    dependencies:
+      agent-base: 8.0.0
+      debug: 4.4.3
+      get-uri: 7.0.0
+      http-proxy-agent: 8.0.0
+      https-proxy-agent: 8.0.0
+      pac-resolver: 8.0.0(quickjs-wasi@0.0.1)
+      quickjs-wasi: 0.0.1
+      socks-proxy-agent: 9.0.0
+    transitivePeerDependencies:
+      - supports-color
+
   pac-resolver@7.0.1:
     dependencies:
       degenerator: 5.0.1
       netmask: 2.0.2
+
+  pac-resolver@8.0.0(quickjs-wasi@0.0.1):
+    dependencies:
+      degenerator: 6.0.0(quickjs-wasi@0.0.1)
+      netmask: 2.0.2
+      quickjs-wasi: 0.0.1
 
   parent-module@1.0.1:
     dependencies:
@@ -7371,6 +7473,19 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  proxy-agent@7.0.0:
+    dependencies:
+      agent-base: 8.0.0
+      debug: 4.4.3
+      http-proxy-agent: 8.0.0
+      https-proxy-agent: 8.0.0
+      lru-cache: 7.18.3
+      pac-proxy-agent: 8.0.0
+      proxy-from-env: 1.1.0
+      socks-proxy-agent: 9.0.0
+    transitivePeerDependencies:
+      - supports-color
+
   proxy-from-env@1.1.0: {}
 
   proxy-from-env@2.1.0: {}
@@ -7382,6 +7497,8 @@ snapshots:
       side-channel: 1.1.0
 
   queue-microtask@1.2.3: {}
+
+  quickjs-wasi@0.0.1: {}
 
   range-parser@1.2.1: {}
 
@@ -7718,6 +7835,14 @@ snapshots:
   socks-proxy-agent@8.0.5:
     dependencies:
       agent-base: 7.1.4
+      debug: 4.4.3
+      socks: 2.8.7
+    transitivePeerDependencies:
+      - supports-color
+
+  socks-proxy-agent@9.0.0:
+    dependencies:
+      agent-base: 8.0.0
       debug: 4.4.3
       socks: 2.8.7
     transitivePeerDependencies:
