@@ -11,13 +11,18 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Refresh hashtag momentum stats first, then score posts
-  const momentumService = new HashtagMomentumService();
-  await momentumService.refreshAllHashtagStats();
+  try {
+    const momentumService = new HashtagMomentumService();
+    await momentumService.refreshAllHashtagStats();
 
-  const scorer = new TrendScorer();
-  const scored = await scorer.scoreUnprocessedPosts();
+    const scorer = new TrendScorer();
+    const scored = await scorer.scoreUnprocessedPosts();
 
-  console.log(`[Cron/score-posts] Scored ${scored} posts`);
-  return NextResponse.json({ ok: true, scored });
+    console.log(`[Cron/score-posts] Scored ${scored} posts`);
+    return NextResponse.json({ ok: true, scored });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[Cron/score-posts] Error:", err);
+    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+  }
 }
