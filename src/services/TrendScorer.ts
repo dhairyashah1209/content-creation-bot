@@ -1,6 +1,6 @@
 import { db } from "@/db/client";
 import { rawPosts, trendSnapshots } from "@/db/schema";
-import { isNull, gte, sql } from "drizzle-orm";
+import { gte, sql, notInArray } from "drizzle-orm";
 import { HashtagMomentumService } from "./HashtagMomentum";
 import type { ScoreBreakdown, TrendTier } from "@/types";
 
@@ -128,11 +128,20 @@ export class TrendScorer {
     // Find posts with no snapshot yet, posted in last 7 days
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
+    // Get IDs that already have snapshots
+    const scoredIds = await db
+      .selectDistinct({ postId: trendSnapshots.postId })
+      .from(trendSnapshots);
+
+    const scoredIdList = scoredIds.map((r) => r.postId);
+
     const unscored = await db
       .select()
       .from(rawPosts)
       .where(
-        sql`${rawPosts.id} NOT IN (SELECT DISTINCT post_id FROM trend_snapshots) AND ${rawPosts.postedAt} > ${sevenDaysAgo}`
+        scoredIdList.length > 0
+          ? sql`${gte(rawPosts.postedAt, sevenDaysAgo)} AND ${notInArray(rawPosts.id, scoredIdList)}`
+          : gte(rawPosts.postedAt, sevenDaysAgo)
       )
       .limit(500);
 
