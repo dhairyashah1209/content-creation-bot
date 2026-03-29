@@ -19,7 +19,7 @@ export interface ApifyPost {
 }
 
 const HASHTAG_ACTOR = "apify~instagram-hashtag-scraper";
-const MAX_POSTS_PER_RUN = 10; // Keep within Vercel Hobby 60s timeout
+const MAX_POSTS_PER_RUN = 20; // Safe max for Vercel Hobby 60s timeout (~25-40s to scrape)
 
 export class ApifyService {
   private token: string;
