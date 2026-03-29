@@ -15,9 +15,10 @@ export async function GET(req: NextRequest) {
   const results = await service.runForAllActiveTopics();
 
   const totalInserted = results.reduce((sum, r) => sum + r.inserted, 0);
+  const totalUpdated = results.reduce((sum, r) => sum + (r.updated ?? 0), 0);
   const totalSkipped = results.reduce((sum, r) => sum + r.skipped, 0);
 
-  console.log(`[Cron/fetch-trends] Topics: ${results.length}, Inserted: ${totalInserted}, Skipped: ${totalSkipped}`);
+  console.log(`[Cron/fetch-trends] Topics: ${results.length}, Inserted: ${totalInserted}, Updated: ${totalUpdated}, Skipped: ${totalSkipped}`);
 
-  return NextResponse.json({ ok: true, topics: results.length, inserted: totalInserted, skipped: totalSkipped, results });
+  return NextResponse.json({ ok: true, topics: results.length, inserted: totalInserted, updated: totalUpdated, skipped: totalSkipped, results });
 }

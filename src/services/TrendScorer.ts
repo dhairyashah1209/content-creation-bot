@@ -121,44 +121,69 @@ export class TrendScorer {
   }
 
   /**
-   * Score all posts that don't yet have a trend snapshot.
+   * Score all posts from the last 7 days — both new (unscored) and existing.
+   * Creates a new trend snapshot each run, enabling velocity tracking over time.
    * Called by the /api/cron/score-posts route after ingestion.
    */
-  async scoreUnprocessedPosts(): Promise<number> {
-    // Find posts with no snapshot yet, posted in last 7 days
+  async scoreAllRecentPosts(): Promise<{ newlyScored: number; reScored: number }> {
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
-    // Get IDs that already have snapshots
-    const scoredIds = await db
-      .selectDistinct({ postId: trendSnapshots.postId })
-      .from(trendSnapshots);
-
-    const scoredIdList = scoredIds.map((r) => r.postId);
-
-    const unscored = await db
+    const recentPosts = await db
       .select()
       .from(rawPosts)
-      .where(
-        scoredIdList.length > 0
-          ? sql`${gte(rawPosts.postedAt, sevenDaysAgo)} AND ${notInArray(rawPosts.id, scoredIdList)}`
-          : gte(rawPosts.postedAt, sevenDaysAgo)
-      )
+      .where(gte(rawPosts.postedAt, sevenDaysAgo))
       .limit(500);
 
-    if (unscored.length === 0) return 0;
+    if (recentPosts.length === 0) return { newlyScored: 0, reScored: 0 };
+
+    // Fetch the latest snapshot for each post to compute velocityDelta
+    const latestSnapshotRows = await db
+      .select({
+        postId: trendSnapshots.postId,
+        trendScore: trendSnapshots.trendScore,
+        engagementVelocityScore: trendSnapshots.engagementVelocityScore,
+      })
+      .from(trendSnapshots)
+      .where(
+        sql`${trendSnapshots.postId} IN (${sql.join(
+          recentPosts.map((p) => sql`${p.id}`),
+          sql`, `
+        )}) AND ${trendSnapshots.id} IN (
+          SELECT DISTINCT ON (post_id) id FROM trend_snapshots
+          WHERE post_id IN (${sql.join(
+            recentPosts.map((p) => sql`${p.id}`),
+            sql`, `
+          )})
+          ORDER BY post_id, snapshot_time DESC
+        )`
+      );
+
+    const prevScoreMap = new Map<string, { trendScore: number; velocityScore: number }>(
+      latestSnapshotRows.map((r) => [
+        r.postId,
+        {
+          trendScore: parseFloat(r.trendScore),
+          velocityScore: parseFloat(r.engagementVelocityScore),
+        },
+      ])
+    );
 
     // Gather all unique hashtags from these posts
-    const allHashtags = [...new Set(unscored.flatMap((p) => p.hashtags ?? []))];
+    const allHashtags = [...new Set(recentPosts.flatMap((p) => (p.hashtags ?? []) as string[]))];
     const momentumScores = await this.momentumService.getScoresForHashtags(allHashtags);
 
-    let scored = 0;
-    for (const post of unscored) {
-      const hashtagSet = post.hashtags ?? [];
-      // Average momentum score of the post's hashtags (top 5 only)
+    let newlyScored = 0;
+    let reScored = 0;
+
+    // Build all snapshot rows first, then insert in a single batch query
+    const snapshotValues: (typeof trendSnapshots.$inferInsert)[] = [];
+
+    for (const post of recentPosts) {
+      const hashtagSet = (post.hashtags ?? []) as string[];
       const topHashtags = hashtagSet.slice(0, 5);
       const avgMomentum =
         topHashtags.length > 0
-          ? topHashtags.reduce((sum, tag) => sum + (momentumScores.get(tag) ?? 0.5), 0) /
+          ? topHashtags.reduce((sum: number, tag: string) => sum + (momentumScores.get(tag) ?? 0.5), 0) /
             topHashtags.length
           : 0.5;
 
@@ -183,7 +208,13 @@ export class TrendScorer {
           ? totalEngagement / post.authorFollowers
           : null;
 
-      await db.insert(trendSnapshots).values({
+      // Compute velocityDelta from previous snapshot
+      const prev = prevScoreMap.get(post.id);
+      const velocityDelta = prev != null
+        ? parseFloat((breakdown.engagementVelocity - prev.velocityScore).toFixed(3))
+        : null;
+
+      snapshotValues.push({
         postId: post.id,
         likesAtSnapshot: post.likeCount,
         commentsAtSnapshot: post.commentCount,
@@ -198,12 +229,18 @@ export class TrendScorer {
           ? Math.round(post.authorFollowers * 0.3)
           : null,
         engagementRate: engRate != null ? String(engRate.toFixed(4)) : null,
-        velocityDelta: null, // Populated on subsequent snapshots
+        velocityDelta: velocityDelta != null ? String(velocityDelta) : null,
       });
 
-      scored++;
+      if (prev != null) reScored++;
+      else newlyScored++;
     }
 
-    return scored;
+    // Single batch insert — 1 round-trip regardless of post count
+    if (snapshotValues.length > 0) {
+      await db.insert(trendSnapshots).values(snapshotValues);
+    }
+
+    return { newlyScored, reScored };
   }
 }

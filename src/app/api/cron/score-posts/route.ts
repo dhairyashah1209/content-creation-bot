@@ -16,10 +16,10 @@ export async function GET(req: NextRequest) {
     await momentumService.refreshAllHashtagStats();
 
     const scorer = new TrendScorer();
-    const scored = await scorer.scoreUnprocessedPosts();
+    const { newlyScored, reScored } = await scorer.scoreAllRecentPosts();
 
-    console.log(`[Cron/score-posts] Scored ${scored} posts`);
-    return NextResponse.json({ ok: true, scored });
+    console.log(`[Cron/score-posts] Newly scored: ${newlyScored}, Re-scored: ${reScored}`);
+    return NextResponse.json({ ok: true, newlyScored, reScored });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[Cron/score-posts] Error:", err);
