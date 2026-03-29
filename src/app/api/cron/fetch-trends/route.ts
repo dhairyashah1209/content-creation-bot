@@ -19,5 +19,5 @@ export async function GET(req: NextRequest) {
 
   console.log(`[Cron/fetch-trends] Topics: ${results.length}, Inserted: ${totalInserted}, Skipped: ${totalSkipped}`);
 
-  return NextResponse.json({ ok: true, topics: results.length, inserted: totalInserted, skipped: totalSkipped });
+  return NextResponse.json({ ok: true, topics: results.length, inserted: totalInserted, skipped: totalSkipped, results });
 }

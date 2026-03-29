@@ -26,6 +26,7 @@ export class IngestionService {
     topicId: string;
     inserted: number;
     skipped: number;
+    error?: string;
   }> {
     let inserted = 0;
     let skipped = 0;
@@ -82,7 +83,9 @@ export class IngestionService {
         .set({ lastFetchedAt: new Date() })
         .where(eq(trackedTopics.id, topic.id));
     } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
       console.error(`[Ingestion] Failed topic ${topic.value}:`, err);
+      return { topicId: topic.id, inserted, skipped, error: message };
     }
 
     return { topicId: topic.id, inserted, skipped };

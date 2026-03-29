@@ -24,7 +24,7 @@ export class ApifyService {
   private client: ApifyClient;
   // Apify actor for scraping Instagram hashtags
   private static readonly HASHTAG_ACTOR = "apify/instagram-hashtag-scraper";
-  private static readonly MAX_POSTS_PER_RUN = 50; // Stay within free tier
+  private static readonly MAX_POSTS_PER_RUN = 10; // Keep within Vercel Hobby 60s timeout
 
   constructor() {
     this.client = new ApifyClient({ token: process.env.APIFY_API_TOKEN });
