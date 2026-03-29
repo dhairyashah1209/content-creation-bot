@@ -1,0 +1,53 @@
+name: Trend Fetch & Score
+
+on:
+  schedule:
+    # fetch-trends: every 4 hours
+    - cron: "0 */4 * * *"
+  workflow_dispatch: # allow manual trigger from GitHub UI
+
+jobs:
+  fetch-trends:
+    name: Fetch trends from Apify
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call /api/cron/fetch-trends
+        run: |
+          response=$(curl -s -w "\n%{http_code}" \
+            -X GET "${{ vars.VERCEL_APP_URL }}/api/cron/fetch-trends" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}")
+
+          body=$(echo "$response" | head -n -1)
+          status=$(echo "$response" | tail -n 1)
+
+          echo "HTTP $status"
+          echo "$body" | python3 -m json.tool || echo "$body"
+
+          if [ "$status" != "200" ]; then
+            echo "::error::fetch-trends returned HTTP $status"
+            exit 1
+          fi
+
+  score-posts:
+    name: Score fetched posts
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    needs: fetch-trends   # always runs after fetch, even if fetch had no new posts
+    steps:
+      - name: Call /api/cron/score-posts
+        run: |
+          response=$(curl -s -w "\n%{http_code}" \
+            -X GET "${{ vars.VERCEL_APP_URL }}/api/cron/score-posts" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}")
+
+          body=$(echo "$response" | head -n -1)
+          status=$(echo "$response" | tail -n 1)
+
+          echo "HTTP $status"
+          echo "$body" | python3 -m json.tool || echo "$body"
+
+          if [ "$status" != "200" ]; then
+            echo "::error::score-posts returned HTTP $status"
+            exit 1
+          fi
