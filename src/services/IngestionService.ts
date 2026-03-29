@@ -10,7 +10,7 @@ export class IngestionService {
     this.apify = new ApifyService();
   }
 
-  async runForAllActiveTopics(): Promise<{ topicId: string; inserted: number; skipped: number }[]> {
+  async runForAllActiveTopics(): Promise<{ topicId: string; inserted: number; updated: number; skipped: number; error?: string }[]> {
     const topics = await db
       .select()
       .from(trackedTopics)
