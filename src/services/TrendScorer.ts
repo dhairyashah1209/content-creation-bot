@@ -1,7 +1,6 @@
 import { db } from "@/db/client";
 import { rawPosts, trendSnapshots } from "@/db/schema";
-import { gte, sql, notInArray } from "drizzle-orm";
-import { HashtagMomentumService } from "./HashtagMomentum";
+import { and, eq, gte, sql } from "drizzle-orm";import { HashtagMomentumService } from "./HashtagMomentum";
 import type { ScoreBreakdown, TrendTier } from "@/types";
 
 // Scoring weights (must sum to 1.0)
@@ -131,7 +130,7 @@ export class TrendScorer {
     const recentPosts = await db
       .select()
       .from(rawPosts)
-      .where(gte(rawPosts.postedAt, sevenDaysAgo))
+      .where(and(gte(rawPosts.postedAt, sevenDaysAgo), eq(rawPosts.isStale, false)))
       .limit(500);
 
     if (recentPosts.length === 0) return { newlyScored: 0, reScored: 0 };

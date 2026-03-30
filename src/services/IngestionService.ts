@@ -1,7 +1,10 @@
 import { db } from "@/db/client";
 import { rawPosts, trackedTopics } from "@/db/schema";
 import { ApifyService } from "./ApifyService";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, gte, lt, isNotNull, sql } from "drizzle-orm";
+
+// Posts with fewer than this many likes are low-virality — marked stale, excluded from refreshes
+const STALE_LIKE_THRESHOLD = 10;
 
 export class IngestionService {
   private apify: ApifyService;
@@ -10,11 +13,17 @@ export class IngestionService {
     this.apify = new ApifyService();
   }
 
-  async runForAllActiveTopics(): Promise<{ topicId: string; inserted: number; updated: number; skipped: number; error?: string }[]> {
+  async runForAllActiveTopics(): Promise<{
+    topicId: string;
+    inserted: number;
+    updated: number;
+    skipped: number;
+    error?: string;
+  }[]> {
     const topics = await db
       .select()
       .from(trackedTopics)
-      .where(and(eq(trackedTopics.isActive, true)));
+      .where(eq(trackedTopics.isActive, true));
 
     const summaries = await Promise.all(
       topics.map((topic) => this.runForTopic(topic))
@@ -40,7 +49,6 @@ export class IngestionService {
         const mediaType = ApifyService.normalizeMediaType(post.type);
         const postedAt = new Date(post.timestamp);
 
-        // Skip posts older than 7 days — not useful for trend analysis
         const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
         if (postedAt < sevenDaysAgo) {
           skipped++;
@@ -48,7 +56,6 @@ export class IngestionService {
         }
 
         try {
-          // xmax = 0 on the returned row means it was a fresh INSERT (not an UPDATE)
           const [result] = await db
             .insert(rawPosts)
             .values({
@@ -75,8 +82,6 @@ export class IngestionService {
             .onConflictDoUpdate({
               target: rawPosts.externalId,
               set: {
-                // Use existing column value as fallback so a null from Apify
-                // never overwrites a valid count we already stored
                 likeCount: post.likesCount != null
                   ? post.likesCount
                   : sql`${rawPosts.likeCount}`,
@@ -102,7 +107,6 @@ export class IngestionService {
         }
       }
 
-      // Mark topic as fetched
       await db
         .update(trackedTopics)
         .set({ lastFetchedAt: new Date() })
@@ -114,5 +118,114 @@ export class IngestionService {
     }
 
     return { topicId: topic.id, inserted, updated, skipped };
+  }
+
+  /**
+   * Re-fetch engagement metrics (likes, comments, play count, follower count) for all
+   * stored posts that were NOT returned by the latest hashtag scrape — i.e. posts whose
+   * fetchedAt is older than the refresh interval.
+   *
+   * This ensures every post in the DB has up-to-date numbers before the scoring step,
+   * not just the handful of posts the hashtag scraper happened to return this cycle.
+   */
+  async refreshStalePostMetrics(refreshIntervalMs = 4 * 60 * 60 * 1000): Promise<{
+    markedStale: number;
+    refreshed: number;
+    failed: number;
+  }> {
+    const fetchThreshold = new Date(Date.now() - refreshIntervalMs);
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+    // Step 1 — mark low-virality posts as stale in one batch update.
+    // These are posts with likeCount < STALE_LIKE_THRESHOLD that haven't been
+    // refreshed this cycle. They won't be retried by the post scraper.
+    const markedStaleRows = await db
+      .update(rawPosts)
+      .set({ isStale: true, fetchedAt: new Date() })
+      .where(
+        and(
+          gte(rawPosts.postedAt, sevenDaysAgo),
+          lt(rawPosts.fetchedAt, fetchThreshold),
+          lt(rawPosts.likeCount, STALE_LIKE_THRESHOLD),
+          eq(rawPosts.isStale, false)
+        )
+      )
+      .returning({ id: rawPosts.id });
+    const markedStale = markedStaleRows.length;
+
+    // Step 2 — find posts that still need a refresh: not stale, not recently fetched
+    const postsToRefresh = await db
+      .select({
+        id: rawPosts.id,
+        externalId: rawPosts.externalId,
+        postUrl: rawPosts.postUrl,
+      })
+      .from(rawPosts)
+      .where(
+        and(
+          gte(rawPosts.postedAt, sevenDaysAgo),
+          lt(rawPosts.fetchedAt, fetchThreshold),
+          eq(rawPosts.isStale, false),
+          isNotNull(rawPosts.postUrl)
+        )
+      )
+      .limit(50);
+
+    if (postsToRefresh.length === 0) return { markedStale: markedStale ?? 0, refreshed: 0, failed: 0 };
+
+    let freshPosts: Awaited<ReturnType<ApifyService["refreshPostsByUrl"]>>;
+    try {
+      freshPosts = await this.apify.refreshPostsByUrl(postsToRefresh.map((p) => p.postUrl!));
+    } catch (err) {
+      console.error("[Ingestion] Post refresh actor failed:", err);
+      return { markedStale: markedStale ?? 0, refreshed: 0, failed: postsToRefresh.length };
+    }
+
+    const byExternalId = new Map(freshPosts.map((p) => [p.id, p]));
+    let refreshed = 0;
+    let failed = 0;
+
+    for (const post of postsToRefresh) {
+      const fresh = byExternalId.get(post.externalId);
+
+      // Post not returned by Apify — likely deleted from Instagram.
+      // Mark stale so we don't burn credits retrying it next cycle.
+      if (!fresh) {
+        await db
+          .update(rawPosts)
+          .set({ isStale: true, fetchedAt: new Date() })
+          .where(eq(rawPosts.id, post.id));
+        failed++;
+        continue;
+      }
+
+      // If fresh data shows it's now below threshold, mark stale instead of updating
+      if ((fresh.likesCount ?? 0) < STALE_LIKE_THRESHOLD) {
+        await db
+          .update(rawPosts)
+          .set({ isStale: true, fetchedAt: new Date() })
+          .where(eq(rawPosts.id, post.id));
+        failed++;
+        continue;
+      }
+
+      try {
+        await db
+          .update(rawPosts)
+          .set({
+            likeCount: fresh.likesCount ?? sql`${rawPosts.likeCount}`,
+            commentCount: fresh.commentsCount ?? sql`${rawPosts.commentCount}`,
+            playCount: fresh.videoViewCount ?? sql`${rawPosts.playCount}`,
+            authorFollowers: fresh.followersCount ?? sql`${rawPosts.authorFollowers}`,
+            fetchedAt: new Date(),
+          })
+          .where(eq(rawPosts.id, post.id));
+        refreshed++;
+      } catch {
+        failed++;
+      }
+    }
+
+    return { markedStale: markedStale ?? 0, refreshed, failed };
   }
 }

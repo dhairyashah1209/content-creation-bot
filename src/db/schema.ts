@@ -8,7 +8,6 @@ import {
   numeric,
   timestamp,
   jsonb,
-  primaryKey,
   index,
 } from "drizzle-orm/pg-core";
 
@@ -47,11 +46,14 @@ export const rawPosts = pgTable(
     mentions: text("mentions").array().default([]).notNull(),
     postedAt: timestamp("posted_at", { withTimezone: true }).notNull(),
     fetchedAt: timestamp("fetched_at", { withTimezone: true }).defaultNow().notNull(),
+    // Marked true when likeCount < STALE_LIKE_THRESHOLD — excluded from refreshes and dashboard
+    isStale: boolean("is_stale").default(false).notNull(),
     rawPayload: jsonb("raw_payload"),
   },
   (t) => [
     index("idx_raw_posts_posted_at").on(t.postedAt),
     index("idx_raw_posts_topic_id").on(t.topicId),
+    index("idx_raw_posts_is_stale").on(t.isStale),
   ]
 );
 

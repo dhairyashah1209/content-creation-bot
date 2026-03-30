@@ -19,7 +19,10 @@ export interface ApifyPost {
 }
 
 const HASHTAG_ACTOR = "apify~instagram-hashtag-scraper";
-const MAX_POSTS_PER_RUN = 20; // Safe max for Vercel Hobby 60s timeout (~25-40s to scrape)
+const POST_ACTOR = "apify~instagram-post-scraper";
+const MAX_POSTS_PER_RUN = 20;
+// Max posts to refresh per cycle — keeps each post-scraper run small and fast
+const MAX_POSTS_TO_REFRESH = 50;
 
 export class ApifyService {
   private token: string;
@@ -31,7 +34,6 @@ export class ApifyService {
   async fetchPostsByHashtag(hashtag: string, maxPosts = MAX_POSTS_PER_RUN): Promise<ApifyPost[]> {
     const tag = hashtag.replace(/^#/, "");
 
-    // Start actor run
     const runRes = await fetch(
       `https://api.apify.com/v2/acts/${HASHTAG_ACTOR}/runs?token=${this.token}`,
       {
@@ -46,57 +48,80 @@ export class ApifyService {
       throw new Error(`Apify run start failed: ${runRes.status} ${text}`);
     }
 
-    const { data: runData } = await runRes.json() as { data: { id: string; defaultDatasetId: string; status: string } };
-    const runId = runData.id;
+    const { data: runData } = await runRes.json() as {
+      data: { id: string; defaultDatasetId: string; status: string };
+    };
 
-    // Poll until finished (max 55s)
-    const deadline = Date.now() + 55_000;
-    let status = runData.status;
+    const items = await this.pollAndFetch(runData.id, runData.defaultDatasetId, maxPosts);
+    return items.filter((item) => item?.id);
+  }
+
+  /**
+   * Refresh engagement metrics for specific posts by their Instagram URLs.
+   * Uses the instagram-post-scraper actor which accepts direct post URLs.
+   * Limited to MAX_POSTS_TO_REFRESH per call to control Apify credit usage.
+   */
+  async refreshPostsByUrl(
+    postUrls: string[],
+    maxPosts = MAX_POSTS_TO_REFRESH
+  ): Promise<ApifyPost[]> {
+    const urlBatch = postUrls.slice(0, maxPosts);
+    if (urlBatch.length === 0) return [];
+
+    const runRes = await fetch(
+      `https://api.apify.com/v2/acts/${POST_ACTOR}/runs?token=${this.token}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ directUrls: urlBatch }),
+      }
+    );
+
+    if (!runRes.ok) {
+      const text = await runRes.text();
+      throw new Error(`Apify post-scraper run start failed: ${runRes.status} ${text}`);
+    }
+
+    const { data: runData } = await runRes.json() as {
+      data: { id: string; defaultDatasetId: string; status: string };
+    };
+
+    const items = await this.pollAndFetch(runData.id, runData.defaultDatasetId, maxPosts, 120_000);
+    return items.filter((item) => item?.id);
+  }
+
+  /** Poll an actor run until it finishes, then return its dataset items. */
+  private async pollAndFetch(
+    runId: string,
+    datasetId: string,
+    limit: number,
+    timeoutMs = 55_000
+  ): Promise<ApifyPost[]> {
+    const deadline = Date.now() + timeoutMs;
+    let status = "RUNNING";
 
     while (status !== "SUCCEEDED" && status !== "FAILED" && status !== "ABORTED") {
-      if (Date.now() > deadline) throw new Error("Apify run timed out after 55s");
+      if (Date.now() > deadline) throw new Error(`Apify run ${runId} timed out`);
       await new Promise((r) => setTimeout(r, 3000));
 
       const statusRes = await fetch(
         `https://api.apify.com/v2/actor-runs/${runId}?token=${this.token}`
       );
-      const { data } = await statusRes.json() as { data: { status: string; defaultDatasetId: string } };
+      const { data } = await statusRes.json() as { data: { status: string } };
       status = data.status;
     }
 
-    if (status !== "SUCCEEDED") throw new Error(`Apify run ended with status: ${status}`);
+    if (status !== "SUCCEEDED") throw new Error(`Apify run ${runId} ended with status: ${status}`);
 
-    // Fetch dataset items
     const datasetRes = await fetch(
-      `https://api.apify.com/v2/datasets/${runData.defaultDatasetId}/items?token=${this.token}&limit=${maxPosts}`
+      `https://api.apify.com/v2/datasets/${datasetId}/items?token=${this.token}&limit=${limit}`
     );
 
     if (!datasetRes.ok) throw new Error(`Apify dataset fetch failed: ${datasetRes.status}`);
 
-    const items = await datasetRes.json() as ApifyPost[];
-    return items.filter((item) => item?.id);
+    return datasetRes.json() as Promise<ApifyPost[]>;
   }
 
-  async fetchPostsByMultipleHashtags(
-    hashtags: string[],
-    maxPerHashtag = 30
-  ): Promise<Map<string, ApifyPost[]>> {
-    const results = new Map<string, ApifyPost[]>();
-
-    for (const tag of hashtags) {
-      try {
-        const posts = await this.fetchPostsByHashtag(tag, maxPerHashtag);
-        results.set(tag, posts);
-      } catch (err) {
-        console.error(`[Apify] Failed to fetch hashtag ${tag}:`, err);
-        results.set(tag, []);
-      }
-    }
-
-    return results;
-  }
-
-  /** Map Apify media type to our internal MediaType */
   static normalizeMediaType(apifyType: string): "image" | "video" | "carousel" | "reel" {
     switch (apifyType) {
       case "Video":

@@ -10,7 +10,7 @@ jobs:
   fetch-trends:
     name: Fetch trends from Apify
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - name: Call /api/cron/fetch-trends
         run: |

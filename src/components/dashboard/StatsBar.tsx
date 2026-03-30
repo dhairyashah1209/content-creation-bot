@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Flame, TrendingUp, BarChart2, Layers } from "lucide-react";
+import { Flame, TrendingUp, BarChart2, Archive } from "lucide-react";
 
 interface TrendPost {
   trendTier: string | null;
@@ -15,32 +15,48 @@ interface StatsBarProps {
 }
 
 export function StatsBar({ topicId }: StatsBarProps) {
-  const { data, isLoading } = useQuery<TrendPost[]>({
+  const activeParams = new URLSearchParams({ limit: "50" });
+  if (topicId) activeParams.set("topicId", topicId);
+
+  const staleParams = new URLSearchParams({ limit: "50", stale: "true" });
+  if (topicId) staleParams.set("topicId", topicId);
+
+  const { data: activePosts, isLoading: loadingActive } = useQuery<TrendPost[]>({
     queryKey: ["trends", topicId, "all"],
     queryFn: async () => {
-      const params = new URLSearchParams({ limit: "50" });
-      if (topicId) params.set("topicId", topicId);
-      const res = await fetch(`/api/trends?${params}`);
+      const res = await fetch(`/api/trends?${activeParams}`);
       const json = await res.json();
       return json.posts as TrendPost[];
     },
   });
 
-  const viral = data?.filter((p) => p.trendTier === "viral").length ?? 0;
-  const rising = data?.filter((p) => p.trendTier === "rising").length ?? 0;
+  const { data: stalePosts, isLoading: loadingStale } = useQuery<unknown[]>({
+    queryKey: ["trends", topicId, "stale"],
+    queryFn: async () => {
+      const res = await fetch(`/api/trends?${staleParams}`);
+      const json = await res.json();
+      return json.posts;
+    },
+  });
+
+  const isLoading = loadingActive || loadingStale;
+
+  const viral = activePosts?.filter((p) => p.trendTier === "viral").length ?? 0;
+  const rising = activePosts?.filter((p) => p.trendTier === "rising").length ?? 0;
   const avgScore =
-    data && data.length > 0
+    activePosts && activePosts.length > 0
       ? (
-          data.reduce((sum, p) => sum + parseFloat(p.trendScore ?? "0"), 0) / data.length
+          activePosts.reduce((sum, p) => sum + parseFloat(p.trendScore ?? "0"), 0) /
+          activePosts.length
         ).toFixed(1)
       : "—";
-  const total = data?.length ?? 0;
+  const staleCount = stalePosts?.length ?? 0;
 
   const stats = [
-    { label: "Viral Posts", value: viral, icon: Flame, color: "text-red-500" },
-    { label: "Rising Posts", value: rising, icon: TrendingUp, color: "text-orange-500" },
-    { label: "Avg Trend Score", value: avgScore, icon: BarChart2, color: "text-blue-500" },
-    { label: "Posts Tracked", value: total, icon: Layers, color: "text-violet-500" },
+    { label: "Viral Posts",      value: viral,       icon: Flame,      color: "text-red-500" },
+    { label: "Rising Posts",     value: rising,      icon: TrendingUp, color: "text-orange-500" },
+    { label: "Avg Trend Score",  value: avgScore,    icon: BarChart2,  color: "text-blue-500" },
+    { label: "Stale Posts",      value: staleCount,  icon: Archive,    color: "text-muted-foreground" },
   ];
 
   if (isLoading) {
