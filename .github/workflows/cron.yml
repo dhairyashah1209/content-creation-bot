@@ -32,7 +32,7 @@ jobs:
   score-posts:
     name: Score fetched posts
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    timeout-minutes: 10
     needs: fetch-trends   # always runs after fetch, even if fetch had no new posts
     steps:
       - name: Call /api/cron/score-posts
