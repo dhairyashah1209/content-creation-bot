@@ -1,13 +1,16 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { TrendScoreCard } from "./TrendScoreCard";
 import { StalePostCard } from "./StalePostCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
 import { useState } from "react";
 
 type TabValue = "all" | "viral" | "rising" | "steady" | "stale";
+
+const PAGE_SIZE = 30;
 
 interface TrendPost {
   id: string;
@@ -37,10 +40,20 @@ interface TrendFeedProps {
 export function TrendFeed({ topicId }: TrendFeedProps) {
   const [tab, setTab] = useState<TabValue>("all");
 
-  const { data, isLoading, isFetching } = useQuery({
+  const {
+    data,
+    isLoading,
+    isFetching,
+    isFetchingNextPage,
+    hasNextPage,
+    fetchNextPage,
+  } = useInfiniteQuery({
     queryKey: ["trends", topicId, tab],
-    queryFn: async () => {
-      const params = new URLSearchParams({ limit: "24" });
+    queryFn: async ({ pageParam = 0 }) => {
+      const params = new URLSearchParams({
+        limit: String(PAGE_SIZE),
+        offset: String(pageParam),
+      });
       if (topicId) params.set("topicId", topicId);
 
       if (tab === "stale") {
@@ -53,8 +66,14 @@ export function TrendFeed({ topicId }: TrendFeedProps) {
       const json = await res.json();
       return json.posts as TrendPost[];
     },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      if (lastPage.length < PAGE_SIZE) return undefined;
+      return allPages.reduce((total, page) => total + page.length, 0);
+    },
   });
 
+  const posts = data?.pages.flat() ?? [];
   const isStaleTab = tab === "stale";
 
   return (
@@ -71,7 +90,7 @@ export function TrendFeed({ topicId }: TrendFeedProps) {
             </TabsTrigger>
           </TabsList>
         </Tabs>
-        {isFetching && !isLoading && (
+        {isFetching && !isLoading && !isFetchingNextPage && (
           <span className="text-xs text-muted-foreground animate-pulse">Refreshing…</span>
         )}
       </div>
@@ -90,7 +109,7 @@ export function TrendFeed({ topicId }: TrendFeedProps) {
         </div>
       )}
 
-      {!isLoading && (!data || data.length === 0) && (
+      {!isLoading && posts.length === 0 && (
         <div className="flex flex-col items-center justify-center py-20 text-center text-muted-foreground gap-2">
           <span className="text-4xl">{isStaleTab ? "✅" : "📭"}</span>
           <p className="text-sm">
@@ -104,16 +123,30 @@ export function TrendFeed({ topicId }: TrendFeedProps) {
         </div>
       )}
 
-      {data && data.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-          {data.map((post) =>
-            isStaleTab ? (
-              <StalePostCard key={post.id} post={post} />
-            ) : (
-              <TrendScoreCard key={post.id} post={post} />
-            )
+      {posts.length > 0 && (
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+            {posts.map((post) =>
+              isStaleTab ? (
+                <StalePostCard key={post.id} post={post} />
+              ) : (
+                <TrendScoreCard key={post.id} post={post} />
+              )
+            )}
+          </div>
+
+          {hasNextPage && (
+            <div className="flex justify-center pt-2">
+              <Button
+                variant="outline"
+                onClick={() => fetchNextPage()}
+                disabled={isFetchingNextPage}
+              >
+                {isFetchingNextPage ? "Loading…" : "Load More"}
+              </Button>
+            </div>
           )}
-        </div>
+        </>
       )}
     </div>
   );

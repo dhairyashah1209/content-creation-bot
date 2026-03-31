@@ -57,6 +57,39 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ topic }, { status: 201 });
 }
 
+// Re-link orphaned posts (topicId = null) to an existing topic by matching hashtags
+export async function PATCH(req: NextRequest) {
+  const body = await req.json();
+  const { topicId: targetTopicId } = body as { topicId: string };
+
+  if (!targetTopicId?.trim()) {
+    return NextResponse.json({ error: "topicId is required" }, { status: 400 });
+  }
+
+  // Look up the topic to get its value
+  const [topic] = await db
+    .select()
+    .from(trackedTopics)
+    .where(eq(trackedTopics.id, targetTopicId))
+    .limit(1);
+
+  if (!topic) {
+    return NextResponse.json({ error: "topic not found" }, { status: 404 });
+  }
+
+  const tag = topic.value.replace(/^#/, "");
+
+  const relinked = await db
+    .update(rawPosts)
+    .set({ topicId: targetTopicId })
+    .where(
+      sql`${isNull(rawPosts.topicId)} AND ${sql`${tag}`} = ANY(${rawPosts.hashtags})`
+    )
+    .returning({ id: rawPosts.id });
+
+  return NextResponse.json({ relinked: relinked.length });
+}
+
 export async function DELETE(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const id = searchParams.get("id");
