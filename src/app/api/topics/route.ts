@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db/client";
-import { trackedTopics } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { rawPosts, trackedTopics } from "@/db/schema";
+import { eq, isNull, sql } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +38,21 @@ export async function POST(req: NextRequest) {
     .values({ value: normalized, topicType })
     .onConflictDoNothing()
     .returning();
+
+  // Re-link orphaned posts whose hashtags match this topic.
+  // This recovers posts that lost their topicId when a topic was previously deleted.
+  if (topic) {
+    const tag = normalized.replace(/^#/, "");
+    const relinked = await db
+      .update(rawPosts)
+      .set({ topicId: topic.id })
+      .where(
+        sql`${isNull(rawPosts.topicId)} AND ${sql`${tag}`} = ANY(${rawPosts.hashtags})`
+      )
+      .returning({ id: rawPosts.id });
+
+    return NextResponse.json({ topic, relinked: relinked.length }, { status: 201 });
+  }
 
   return NextResponse.json({ topic }, { status: 201 });
 }

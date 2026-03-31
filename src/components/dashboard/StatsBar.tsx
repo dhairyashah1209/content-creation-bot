@@ -5,9 +5,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Flame, TrendingUp, BarChart2, Archive, Hash } from "lucide-react";
 
-interface TrendPost {
-  trendTier: string | null;
-  trendScore: string | null;
+interface StatsResponse {
+  totalPosts: number;
+  viral: number;
+  rising: number;
+  avgScore: string;
+  staleCount: number;
 }
 
 interface StatsBarProps {
@@ -15,49 +18,22 @@ interface StatsBarProps {
 }
 
 export function StatsBar({ topicId }: StatsBarProps) {
-  const activeParams = new URLSearchParams({ limit: "50" });
-  if (topicId) activeParams.set("topicId", topicId);
-
-  const staleParams = new URLSearchParams({ limit: "50", stale: "true" });
-  if (topicId) staleParams.set("topicId", topicId);
-
-  const { data: activeData, isLoading: loadingActive } = useQuery<{ posts: TrendPost[]; totalCount: number }>({
-    queryKey: ["trends-stats", topicId, "all"],
+  const { data, isLoading } = useQuery<StatsResponse>({
+    queryKey: ["stats", topicId],
     queryFn: async () => {
-      const res = await fetch(`/api/trends?${activeParams}`);
+      const params = new URLSearchParams();
+      if (topicId) params.set("topicId", topicId);
+      const res = await fetch(`/api/stats?${params}`);
       return res.json();
     },
   });
-
-  const { data: staleData, isLoading: loadingStale } = useQuery<{ posts: unknown[]; totalCount?: number }>({
-    queryKey: ["trends-stats", topicId, "stale"],
-    queryFn: async () => {
-      const res = await fetch(`/api/trends?${staleParams}`);
-      return res.json();
-    },
-  });
-
-  const isLoading = loadingActive || loadingStale;
-
-  const activePosts = activeData?.posts ?? [];
-  const viral = activePosts.filter((p) => p.trendTier === "viral").length;
-  const rising = activePosts.filter((p) => p.trendTier === "rising").length;
-  const avgScore =
-    activePosts.length > 0
-      ? (
-          activePosts.reduce((sum, p) => sum + parseFloat(p.trendScore ?? "0"), 0) /
-          activePosts.length
-        ).toFixed(1)
-      : "—";
-  const staleCount = staleData?.posts?.length ?? 0;
-  const totalPosts = (activeData?.totalCount ?? 0) + staleCount;
 
   const stats = [
-    { label: "Total Posts",      value: totalPosts,  icon: Hash,       color: "text-emerald-500" },
-    { label: "Viral Posts",      value: viral,       icon: Flame,      color: "text-red-500" },
-    { label: "Rising Posts",     value: rising,      icon: TrendingUp, color: "text-orange-500" },
-    { label: "Avg Trend Score",  value: avgScore,    icon: BarChart2,  color: "text-blue-500" },
-    { label: "Stale Posts",      value: staleCount,  icon: Archive,    color: "text-muted-foreground" },
+    { label: "Total Posts",     value: data?.totalPosts ?? 0,             icon: Hash,       color: "text-emerald-500" },
+    { label: "Viral Posts",     value: data?.viral ?? 0,                  icon: Flame,      color: "text-red-500" },
+    { label: "Rising Posts",    value: data?.rising ?? 0,                 icon: TrendingUp, color: "text-orange-500" },
+    { label: "Avg Trend Score", value: data?.avgScore ?? "—",             icon: BarChart2,  color: "text-blue-500" },
+    { label: "Stale Posts",     value: data?.staleCount ?? 0,             icon: Archive,    color: "text-muted-foreground" },
   ];
 
   if (isLoading) {
