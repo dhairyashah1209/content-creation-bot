@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db/client";
 import { rawPosts, trendSnapshots } from "@/db/schema";
-import { eq, desc, gte, and, sql, isNotNull } from "drizzle-orm";
+import { eq, desc, gte, and, sql, isNotNull, ilike, or } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +10,7 @@ export async function GET(req: NextRequest) {
   const topicId = searchParams.get("topicId");
   const tier = searchParams.get("tier");
   const stale = searchParams.get("stale") === "true";
+  const search = searchParams.get("search");
   const limit = Math.min(parseInt(searchParams.get("limit") ?? "20"), 200);
   const offset = Math.max(parseInt(searchParams.get("offset") ?? "0"), 0);
 
@@ -108,6 +109,10 @@ export async function GET(req: NextRequest) {
 
   if (topicId) conditions.push(eq(rawPosts.topicId, topicId));
   if (tier) conditions.push(eq(latestSnapshots.trendTier, tier as "viral" | "rising" | "steady" | "declining" | "dormant"));
+  if (search) {
+    const pattern = `%${search}%`;
+    conditions.push(or(ilike(rawPosts.authorHandle, pattern), ilike(rawPosts.caption, pattern))!);
+  }
 
   const rows = await db
     .select({
