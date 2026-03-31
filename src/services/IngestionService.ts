@@ -151,7 +151,7 @@ export class IngestionService {
         )
       )
       .orderBy(rawPosts.fetchedAt)
-      .limit(50);
+      .limit(20);
 
     let refreshed = 0;
     let failed = 0;
