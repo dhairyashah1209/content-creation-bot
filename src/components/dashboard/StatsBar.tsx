@@ -22,7 +22,7 @@ export function StatsBar({ topicId }: StatsBarProps) {
   if (topicId) staleParams.set("topicId", topicId);
 
   const { data: activeData, isLoading: loadingActive } = useQuery<{ posts: TrendPost[]; totalCount: number }>({
-    queryKey: ["trends", topicId, "all"],
+    queryKey: ["trends-stats", topicId, "all"],
     queryFn: async () => {
       const res = await fetch(`/api/trends?${activeParams}`);
       return res.json();
@@ -30,7 +30,7 @@ export function StatsBar({ topicId }: StatsBarProps) {
   });
 
   const { data: staleData, isLoading: loadingStale } = useQuery<{ posts: unknown[]; totalCount?: number }>({
-    queryKey: ["trends", topicId, "stale"],
+    queryKey: ["trends-stats", topicId, "stale"],
     queryFn: async () => {
       const res = await fetch(`/api/trends?${staleParams}`);
       return res.json();
