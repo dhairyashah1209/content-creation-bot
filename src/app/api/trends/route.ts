@@ -10,7 +10,8 @@ export async function GET(req: NextRequest) {
   const topicId = searchParams.get("topicId");
   const tier = searchParams.get("tier");
   const stale = searchParams.get("stale") === "true";
-  const limit = Math.min(parseInt(searchParams.get("limit") ?? "20"), 50);
+  const limit = Math.min(parseInt(searchParams.get("limit") ?? "20"), 200);
+  const offset = Math.max(parseInt(searchParams.get("offset") ?? "0"), 0);
 
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
@@ -73,6 +74,7 @@ export async function GET(req: NextRequest) {
       .leftJoin(latestSnapshots, eq(rawPosts.id, latestSnapshots.postId))
       .where(and(...conditions))
       .orderBy(desc(rawPosts.postedAt))
+      .offset(offset)
       .limit(limit);
 
     return NextResponse.json({ posts: rows });
@@ -138,6 +140,7 @@ export async function GET(req: NextRequest) {
     .innerJoin(latestSnapshots, eq(rawPosts.id, latestSnapshots.postId))
     .where(and(...conditions))
     .orderBy(desc(sql`CAST(${latestSnapshots.trendScore} AS NUMERIC)`))
+    .offset(offset)
     .limit(limit);
 
   return NextResponse.json({ posts: rows });
