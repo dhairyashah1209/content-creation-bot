@@ -58,7 +58,7 @@ export class HashtagMomentumService {
         SELECT DISTINCT ON (hashtag) hashtag, momentum_score
         FROM hashtag_stats
         WHERE recorded_at >= ${oneDayAgo}::timestamptz
-          AND hashtag = ANY(${hashtags})
+          AND hashtag = ANY(${sql`ARRAY[${sql.join(hashtags.map(h => sql`${h}`), sql`, `)}]::text[]`})
         ORDER BY hashtag, recorded_at DESC
       `);
 
