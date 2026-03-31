@@ -21,8 +21,8 @@ export interface ApifyPost {
 const HASHTAG_ACTOR = "apify~instagram-hashtag-scraper";
 const POST_ACTOR = "apify~instagram-post-scraper";
 const MAX_POSTS_PER_RUN = 20;
-// Max posts to refresh per cycle — keeps each post-scraper run small and fast
-const MAX_POSTS_TO_REFRESH = 50;
+// Max posts per individual post-scraper Apify run — keeps each run small and fast
+const MAX_POSTS_PER_BATCH = 50;
 
 export class ApifyService {
   private token: string;
@@ -61,33 +61,45 @@ export class ApifyService {
    * Uses the instagram-post-scraper actor which accepts direct post URLs.
    * Limited to MAX_POSTS_TO_REFRESH per call to control Apify credit usage.
    */
+  /**
+   * Refresh engagement metrics for specific posts by their Instagram URLs.
+   * Uses the instagram-post-scraper actor which accepts direct post URLs.
+   * Processes in batches of MAX_POSTS_PER_BATCH to keep individual Apify runs manageable.
+   */
   async refreshPostsByUrl(
     postUrls: string[],
-    maxPosts = MAX_POSTS_TO_REFRESH
+    batchSize = MAX_POSTS_PER_BATCH
   ): Promise<ApifyPost[]> {
-    const urlBatch = postUrls.slice(0, maxPosts);
-    if (urlBatch.length === 0) return [];
+    if (postUrls.length === 0) return [];
 
-    const runRes = await fetch(
-      `https://api.apify.com/v2/acts/${POST_ACTOR}/runs?token=${this.token}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ directUrls: urlBatch }),
+    const allResults: ApifyPost[] = [];
+
+    for (let i = 0; i < postUrls.length; i += batchSize) {
+      const batch = postUrls.slice(i, i + batchSize);
+
+      const runRes = await fetch(
+        `https://api.apify.com/v2/acts/${POST_ACTOR}/runs?token=${this.token}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ directUrls: batch }),
+        }
+      );
+
+      if (!runRes.ok) {
+        const text = await runRes.text();
+        throw new Error(`Apify post-scraper run start failed: ${runRes.status} ${text}`);
       }
-    );
 
-    if (!runRes.ok) {
-      const text = await runRes.text();
-      throw new Error(`Apify post-scraper run start failed: ${runRes.status} ${text}`);
+      const { data: runData } = await runRes.json() as {
+        data: { id: string; defaultDatasetId: string; status: string };
+      };
+
+      const items = await this.pollAndFetch(runData.id, runData.defaultDatasetId, batch.length, 120_000);
+      allResults.push(...items.filter((item) => item?.id));
     }
 
-    const { data: runData } = await runRes.json() as {
-      data: { id: string; defaultDatasetId: string; status: string };
-    };
-
-    const items = await this.pollAndFetch(runData.id, runData.defaultDatasetId, maxPosts, 120_000);
-    return items.filter((item) => item?.id);
+    return allResults;
   }
 
   /** Poll an actor run until it finishes, then return its dataset items. */
