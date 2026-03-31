@@ -23,8 +23,8 @@ const HASHTAG_ACTOR = "apify~instagram-hashtag-scraper";
 // NOT apify~instagram-post-scraper which requires `username` (profile scraping only).
 const POST_ACTOR = "apify~instagram-scraper";
 const MAX_POSTS_PER_RUN = 20;
-// Max posts per individual scraper run — keeps each run small and fast
-const MAX_POSTS_PER_BATCH = 50;
+// Max posts per individual scraper run — keeps each Apify run under ~60s
+const MAX_POSTS_PER_BATCH = 20;
 
 export class ApifyService {
   private token: string;
