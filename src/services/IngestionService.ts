@@ -132,8 +132,10 @@ export class IngestionService {
   }> {
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
-    // ── Step 1: Refresh engagement for ALL non-stale posts via post scraper ──
+    // ── Step 1: Refresh engagement for non-stale posts via post scraper ──
     // This runs FIRST so that likeCount is accurate before we decide what's stale.
+    // Limited to 50 posts per cycle to stay within Vercel's 300s function timeout.
+    // Posts are ordered by fetchedAt ASC so the least recently refreshed get priority.
     const postsToRefresh = await db
       .select({
         id: rawPosts.id,
@@ -147,7 +149,9 @@ export class IngestionService {
           eq(rawPosts.isStale, false),
           isNotNull(rawPosts.postUrl)
         )
-      );
+      )
+      .orderBy(rawPosts.fetchedAt)
+      .limit(50);
 
     let refreshed = 0;
     let failed = 0;
