@@ -26,10 +26,10 @@ export async function GET(req: NextRequest) {
   // Step 2 — refresh engagement metrics for previously stored posts that weren't
   // returned by the hashtag scraper this cycle (their fetchedAt is older than 4h).
   // This ensures ALL posts in the DB have up-to-date likes/comments before scoring.
-  const { markedStale, refreshed, failed } = await service.refreshStalePostMetrics();
+  const { markedStale, refreshed, failed, unmatched } = await service.refreshStalePostMetrics();
 
   console.log(
-    `[Cron/fetch-trends] Stale refresh — MarkedStale: ${markedStale}, Refreshed: ${refreshed}, Failed: ${failed}`
+    `[Cron/fetch-trends] Stale refresh — MarkedStale: ${markedStale}, Refreshed: ${refreshed}, Failed: ${failed}, Unmatched: ${unmatched ?? 0}`
   );
 
   return NextResponse.json({
@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
     inserted: totalInserted,
     updated: totalUpdated,
     skipped: totalSkipped,
-    staleRefresh: { markedStale, refreshed, failed },
+    staleRefresh: { markedStale, refreshed, failed, unmatched: unmatched ?? 0 },
     results: topicResults,
   });
 }

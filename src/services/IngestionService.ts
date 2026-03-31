@@ -128,6 +128,7 @@ export class IngestionService {
     markedStale: number;
     refreshed: number;
     failed: number;
+    unmatched: number;
   }> {
     const fetchThreshold = new Date(Date.now() - refreshIntervalMs);
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
@@ -168,7 +169,7 @@ export class IngestionService {
         )
       );
 
-    if (postsToRefresh.length === 0) return { markedStale: markedStale ?? 0, refreshed: 0, failed: 0 };
+    if (postsToRefresh.length === 0) return { markedStale: markedStale ?? 0, refreshed: 0, failed: 0, unmatched: 0 };
 
     console.log(`[Ingestion] Refreshing engagement for ${postsToRefresh.length} posts via post scraper`);
 
@@ -177,45 +178,50 @@ export class IngestionService {
       freshPosts = await this.apify.refreshPostsByUrl(postsToRefresh.map((p) => p.postUrl!));
     } catch (err) {
       console.error("[Ingestion] Post refresh actor failed:", err);
-      return { markedStale: markedStale ?? 0, refreshed: 0, failed: postsToRefresh.length };
+      return { markedStale: markedStale ?? 0, refreshed: 0, failed: postsToRefresh.length, unmatched: 0 };
     }
 
+    // Log raw sample to help debug field name mismatches
     console.log(
       `[Ingestion] Post scraper returned ${freshPosts.length} results. ` +
-      `Sample: ${freshPosts.slice(0, 2).map((p) => `id=${p.id} shortCode=${p.shortCode} likes=${p.likesCount}`).join("; ")}`
+      `Sample keys: ${freshPosts.length > 0 ? Object.keys(freshPosts[0]).join(", ") : "none"}. ` +
+      `Sample: ${freshPosts.slice(0, 2).map((p) => JSON.stringify({ id: p.id, shortCode: p.shortCode, url: p.url, likesCount: p.likesCount })).join("; ")}`
     );
 
-    // Build lookup maps by both `id` and `shortCode` — the hashtag scraper stores
-    // externalId as one format, but the post scraper may return a different `id`
-    // (e.g. numeric Instagram ID vs shortcode). Try both to avoid false mismatches.
-    const byId = new Map(freshPosts.map((p) => [p.id, p]));
-    const byShortCode = new Map(freshPosts.map((p) => [p.shortCode, p]));
-    // Also match by URL slug (last path segment of the post URL)
-    const byUrlSlug = new Map(
-      freshPosts
-        .filter((p) => p.url)
-        .map((p) => {
-          const slug = p.url.replace(/\/$/, "").split("/").pop() ?? "";
-          return [slug, p];
-        })
-    );
+    // Extract shortcode from an Instagram URL: /p/ABC123/ or /reel/ABC123/
+    const extractShortcode = (url: string): string => {
+      const match = url.match(/\/(p|reel|tv)\/([^/?]+)/);
+      return match?.[2] ?? "";
+    };
+
+    // Primary matching: by URL shortcode (most reliable across different Apify actors).
+    // Also index by id and shortCode as fallbacks.
+    const byUrlShortcode = new Map<string, (typeof freshPosts)[0]>();
+    const byId = new Map<string, (typeof freshPosts)[0]>();
+    const byShortCode = new Map<string, (typeof freshPosts)[0]>();
+
+    for (const fp of freshPosts) {
+      if (fp.url) byUrlShortcode.set(extractShortcode(fp.url), fp);
+      if (fp.id) byId.set(fp.id, fp);
+      if (fp.shortCode) byShortCode.set(fp.shortCode, fp);
+    }
+
     let refreshed = 0;
     let failed = 0;
+    let unmatched = 0;
 
     for (const post of postsToRefresh) {
-      const fresh =
-        byId.get(post.externalId) ??
-        byShortCode.get(post.externalId) ??
-        byUrlSlug.get(post.externalId);
+      const postShortcode = post.postUrl ? extractShortcode(post.postUrl) : "";
 
-      // Post not returned by Apify — likely deleted from Instagram.
-      // Mark stale so we don't burn credits retrying it next cycle.
+      const fresh =
+        (postShortcode ? byUrlShortcode.get(postShortcode) : undefined) ??
+        byId.get(post.externalId) ??
+        byShortCode.get(post.externalId);
+
+      // Post not matched — could be a field format mismatch, not necessarily deleted.
+      // Don't mark stale; just skip and log so we can diagnose.
       if (!fresh) {
-        await db
-          .update(rawPosts)
-          .set({ isStale: true, fetchedAt: new Date() })
-          .where(eq(rawPosts.id, post.id));
-        failed++;
+        unmatched++;
         continue;
       }
 
@@ -246,6 +252,10 @@ export class IngestionService {
       }
     }
 
-    return { markedStale: markedStale ?? 0, refreshed, failed };
+    if (unmatched > 0) {
+      console.warn(`[Ingestion] ${unmatched} posts could not be matched to Apify results (not marked stale)`);
+    }
+
+    return { markedStale: markedStale ?? 0, refreshed, failed, unmatched };
   }
 }
