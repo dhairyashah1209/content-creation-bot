@@ -21,37 +21,36 @@ export function StatsBar({ topicId }: StatsBarProps) {
   const staleParams = new URLSearchParams({ limit: "50", stale: "true" });
   if (topicId) staleParams.set("topicId", topicId);
 
-  const { data: activePosts, isLoading: loadingActive } = useQuery<TrendPost[]>({
+  const { data: activeData, isLoading: loadingActive } = useQuery<{ posts: TrendPost[]; totalCount: number }>({
     queryKey: ["trends", topicId, "all"],
     queryFn: async () => {
       const res = await fetch(`/api/trends?${activeParams}`);
-      const json = await res.json();
-      return json.posts as TrendPost[];
+      return res.json();
     },
   });
 
-  const { data: stalePosts, isLoading: loadingStale } = useQuery<unknown[]>({
+  const { data: staleData, isLoading: loadingStale } = useQuery<{ posts: unknown[]; totalCount?: number }>({
     queryKey: ["trends", topicId, "stale"],
     queryFn: async () => {
       const res = await fetch(`/api/trends?${staleParams}`);
-      const json = await res.json();
-      return json.posts;
+      return res.json();
     },
   });
 
   const isLoading = loadingActive || loadingStale;
 
-  const viral = activePosts?.filter((p) => p.trendTier === "viral").length ?? 0;
-  const rising = activePosts?.filter((p) => p.trendTier === "rising").length ?? 0;
+  const activePosts = activeData?.posts ?? [];
+  const viral = activePosts.filter((p) => p.trendTier === "viral").length;
+  const rising = activePosts.filter((p) => p.trendTier === "rising").length;
   const avgScore =
-    activePosts && activePosts.length > 0
+    activePosts.length > 0
       ? (
           activePosts.reduce((sum, p) => sum + parseFloat(p.trendScore ?? "0"), 0) /
           activePosts.length
         ).toFixed(1)
       : "—";
-  const staleCount = stalePosts?.length ?? 0;
-  const totalPosts = (activePosts?.length ?? 0) + staleCount;
+  const staleCount = staleData?.posts?.length ?? 0;
+  const totalPosts = (activeData?.totalCount ?? 0) + staleCount;
 
   const stats = [
     { label: "Total Posts",      value: totalPosts,  icon: Hash,       color: "text-emerald-500" },
