@@ -54,7 +54,7 @@ export class ApifyService {
       data: { id: string; defaultDatasetId: string; status: string };
     };
 
-    const items = await this.pollAndFetch(runData.id, runData.defaultDatasetId, maxPosts);
+    const items = await this.pollAndFetch(runData.id, runData.defaultDatasetId, maxPosts, 180_000);
     return items.filter((item) => item?.id);
   }
 
