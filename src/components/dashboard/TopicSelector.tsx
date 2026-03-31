@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, X, Hash } from "lucide-react";
+import { Plus, Hash } from "lucide-react";
 
 interface TrackedTopic {
   id: string;
@@ -49,15 +49,6 @@ export function TopicSelector({ selectedTopicId, onSelect }: TopicSelectorProps)
     },
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      await fetch(`/api/topics?id=${id}`, { method: "DELETE" });
-    },
-    onSuccess: (_, id) => {
-      client.invalidateQueries({ queryKey: ["topics"] });
-      if (selectedTopicId === id) onSelect(null);
-    },
-  });
 
   const handleAdd = () => {
     const trimmed = inputValue.trim();
@@ -106,19 +97,10 @@ export function TopicSelector({ selectedTopicId, onSelect }: TopicSelectorProps)
           <Badge
             key={topic.id}
             variant={selectedTopicId === topic.id ? "default" : "outline"}
-            className="cursor-pointer flex items-center gap-1 pr-1"
+            className="cursor-pointer"
             onClick={() => onSelect(selectedTopicId === topic.id ? null : topic.id)}
           >
             {topic.value}
-            <button
-              className="ml-1 rounded-full hover:bg-white/20 p-0.5"
-              onClick={(e) => {
-                e.stopPropagation();
-                deleteMutation.mutate(topic.id);
-              }}
-            >
-              <X className="w-3 h-3" />
-            </button>
           </Badge>
         ))}
 
