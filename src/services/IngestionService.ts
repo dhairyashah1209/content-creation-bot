@@ -82,20 +82,16 @@ export class IngestionService {
             .onConflictDoUpdate({
               target: rawPosts.externalId,
               set: {
-                likeCount: post.likesCount != null
-                  ? post.likesCount
-                  : sql`${rawPosts.likeCount}`,
-                commentCount: post.commentsCount != null
-                  ? post.commentsCount
-                  : sql`${rawPosts.commentCount}`,
-                playCount: post.videoViewCount != null
-                  ? post.videoViewCount
-                  : sql`${rawPosts.playCount}`,
+                // Don't update engagement fields here — hashtag scraper returns
+                // inaccurate counts (scraped from listing pages, not post pages).
+                // refreshStalePostMetrics() uses the post scraper for accurate data.
+                // We DO update metadata that the hashtag scraper gets right:
                 authorFollowers: post.followersCount != null
                   ? post.followersCount
                   : sql`${rawPosts.authorFollowers}`,
                 rawPayload: post as unknown as Record<string, unknown>,
-                fetchedAt: new Date(),
+                // Don't update fetchedAt — keeps the post eligible for
+                // refreshStalePostMetrics() which gets accurate engagement.
               },
             })
             .returning({ id: rawPosts.id, xmax: sql<string>`xmax::text` });
