@@ -8,8 +8,8 @@ export class HashtagMomentumService {
    * Uses a single SQL query (conditional aggregation) instead of N+1 per-hashtag queries.
    */
   async refreshAllHashtagStats(): Promise<void> {
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
     // One query: unnest hashtag arrays, count per-hashtag in 24h and 7d windows simultaneously.
     // postgres-js returns rows directly as an array (no .rows wrapper).
@@ -17,10 +17,10 @@ export class HashtagMomentumService {
       await db.execute(sql`
         SELECT
           tag                                                          AS hashtag,
-          COUNT(*) FILTER (WHERE posted_at >= ${oneDayAgo})::text     AS count_24h,
+          COUNT(*) FILTER (WHERE posted_at >= ${oneDayAgo}::timestamptz)::text     AS count_24h,
           COUNT(*)::text                                               AS count_7d
         FROM raw_posts, unnest(hashtags) AS t(tag)
-        WHERE posted_at >= ${sevenDaysAgo}
+        WHERE posted_at >= ${sevenDaysAgo}::timestamptz
         GROUP BY tag
       `);
 
@@ -51,13 +51,13 @@ export class HashtagMomentumService {
   async getScoresForHashtags(hashtags: string[]): Promise<Map<string, number>> {
     if (hashtags.length === 0) return new Map();
 
-    const oneDayAgo = new Date(Date.now() - 25 * 60 * 60 * 1000);
+    const oneDayAgo = new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString();
 
     const rows: { hashtag: string; momentum_score: string }[] =
       await db.execute(sql`
         SELECT DISTINCT ON (hashtag) hashtag, momentum_score
         FROM hashtag_stats
-        WHERE recorded_at >= ${oneDayAgo}
+        WHERE recorded_at >= ${oneDayAgo}::timestamptz
           AND hashtag = ANY(${hashtags})
         ORDER BY hashtag, recorded_at DESC
       `);
