@@ -138,17 +138,5 @@ export async function GET(req: NextRequest) {
     .orderBy(desc(sql`CAST(${latestSnapshots.trendScore} AS NUMERIC)`))
     .limit(limit);
 
-  // Compute total count of active (non-stale) posts in the 7-day window (ignoring limit).
-  const countConditions = [
-    gte(rawPosts.postedAt, sevenDaysAgo),
-    eq(rawPosts.isStale, false),
-  ];
-  if (topicId) countConditions.push(eq(rawPosts.topicId, topicId));
-
-  const [{ count: totalCount }] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(rawPosts)
-    .where(and(...countConditions));
-
-  return NextResponse.json({ posts: rows, totalCount });
+  return NextResponse.json({ posts: rows });
 }
