@@ -153,7 +153,10 @@ export class IngestionService {
       .returning({ id: rawPosts.id });
     const markedStale = markedStaleRows.length;
 
-    // Step 2 — find posts that still need a refresh: not stale, not recently fetched
+    // Step 2 — find ALL posts that still need a refresh: not stale, not recently fetched.
+    // No limit — ensures every non-stale post gets updated engagement data before scoring,
+    // so that trend_snapshots.likesAtSnapshot actually changes between cron runs.
+    // ApifyService.refreshPostsByUrl handles batching internally (50 URLs per Apify run).
     const postsToRefresh = await db
       .select({
         id: rawPosts.id,
@@ -168,8 +171,7 @@ export class IngestionService {
           eq(rawPosts.isStale, false),
           isNotNull(rawPosts.postUrl)
         )
-      )
-      .limit(50);
+      );
 
     if (postsToRefresh.length === 0) return { markedStale: markedStale ?? 0, refreshed: 0, failed: 0 };
 
