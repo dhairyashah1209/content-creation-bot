@@ -149,10 +149,10 @@ export class IngestionService {
       .returning({ id: rawPosts.id });
     const markedStale = markedStaleRows.length;
 
-    // Step 2 — find ALL posts that still need a refresh: not stale, not recently fetched.
-    // No limit — ensures every non-stale post gets updated engagement data before scoring,
-    // so that trend_snapshots.likesAtSnapshot actually changes between cron runs.
-    // ApifyService.refreshPostsByUrl handles batching internally (50 URLs per Apify run).
+    // Step 2 — find ALL non-stale posts from the last 7 days for engagement refresh.
+    // No fetchedAt filter — the hashtag scraper's engagement data is inaccurate (scraped
+    // from listing pages), so we always re-fetch via the post scraper which visits each
+    // post's URL directly for accurate likes/comments.
     const postsToRefresh = await db
       .select({
         id: rawPosts.id,
@@ -163,13 +163,14 @@ export class IngestionService {
       .where(
         and(
           gte(rawPosts.postedAt, sevenDaysAgo),
-          lt(rawPosts.fetchedAt, fetchThreshold),
           eq(rawPosts.isStale, false),
           isNotNull(rawPosts.postUrl)
         )
       );
 
     if (postsToRefresh.length === 0) return { markedStale: markedStale ?? 0, refreshed: 0, failed: 0 };
+
+    console.log(`[Ingestion] Refreshing engagement for ${postsToRefresh.length} posts via post scraper`);
 
     let freshPosts: Awaited<ReturnType<ApifyService["refreshPostsByUrl"]>>;
     try {
@@ -179,12 +180,33 @@ export class IngestionService {
       return { markedStale: markedStale ?? 0, refreshed: 0, failed: postsToRefresh.length };
     }
 
-    const byExternalId = new Map(freshPosts.map((p) => [p.id, p]));
+    console.log(
+      `[Ingestion] Post scraper returned ${freshPosts.length} results. ` +
+      `Sample: ${freshPosts.slice(0, 2).map((p) => `id=${p.id} shortCode=${p.shortCode} likes=${p.likesCount}`).join("; ")}`
+    );
+
+    // Build lookup maps by both `id` and `shortCode` — the hashtag scraper stores
+    // externalId as one format, but the post scraper may return a different `id`
+    // (e.g. numeric Instagram ID vs shortcode). Try both to avoid false mismatches.
+    const byId = new Map(freshPosts.map((p) => [p.id, p]));
+    const byShortCode = new Map(freshPosts.map((p) => [p.shortCode, p]));
+    // Also match by URL slug (last path segment of the post URL)
+    const byUrlSlug = new Map(
+      freshPosts
+        .filter((p) => p.url)
+        .map((p) => {
+          const slug = p.url.replace(/\/$/, "").split("/").pop() ?? "";
+          return [slug, p];
+        })
+    );
     let refreshed = 0;
     let failed = 0;
 
     for (const post of postsToRefresh) {
-      const fresh = byExternalId.get(post.externalId);
+      const fresh =
+        byId.get(post.externalId) ??
+        byShortCode.get(post.externalId) ??
+        byUrlSlug.get(post.externalId);
 
       // Post not returned by Apify — likely deleted from Instagram.
       // Mark stale so we don't burn credits retrying it next cycle.
