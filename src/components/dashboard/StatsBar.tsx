@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Flame, TrendingUp, BarChart2, Archive } from "lucide-react";
+import { Flame, TrendingUp, BarChart2, Archive, Hash } from "lucide-react";
 
 interface TrendPost {
   trendTier: string | null;
@@ -51,8 +51,10 @@ export function StatsBar({ topicId }: StatsBarProps) {
         ).toFixed(1)
       : "—";
   const staleCount = stalePosts?.length ?? 0;
+  const totalPosts = (activePosts?.length ?? 0) + staleCount;
 
   const stats = [
+    { label: "Total Posts",      value: totalPosts,  icon: Hash,       color: "text-emerald-500" },
     { label: "Viral Posts",      value: viral,       icon: Flame,      color: "text-red-500" },
     { label: "Rising Posts",     value: rising,      icon: TrendingUp, color: "text-orange-500" },
     { label: "Avg Trend Score",  value: avgScore,    icon: BarChart2,  color: "text-blue-500" },
@@ -61,8 +63,8 @@ export function StatsBar({ topicId }: StatsBarProps) {
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {Array.from({ length: 4 }).map((_, i) => (
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        {Array.from({ length: 5 }).map((_, i) => (
           <Skeleton key={i} className="h-20 rounded-xl" />
         ))}
       </div>
@@ -70,7 +72,7 @@ export function StatsBar({ topicId }: StatsBarProps) {
   }
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
       {stats.map((s) => (
         <Card key={s.label}>
           <CardContent className="flex items-center gap-3 py-4 px-4">

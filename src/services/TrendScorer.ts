@@ -4,12 +4,14 @@ import { and, eq, gte, sql } from "drizzle-orm";import { HashtagMomentumService 
 import type { ScoreBreakdown, TrendTier } from "@/types";
 
 // Scoring weights (must sum to 1.0)
+// Reach amplification removed — Apify doesn't provide share data, so the
+// component was always 0.  Its weight is redistributed to the remaining signals.
 const WEIGHTS = {
-  engagementVelocity: 0.35,
-  reachAmplification: 0.25,
-  hashtagMomentum: 0.20,
-  recency: 0.10,
-  formatMultiplier: 0.10,
+  engagementVelocity: 0.45,
+  reachAmplification: 0.0,
+  hashtagMomentum: 0.25,
+  recency: 0.15,
+  formatMultiplier: 0.15,
 };
 
 const FORMAT_MULTIPLIERS: Record<string, number> = {
@@ -20,8 +22,11 @@ const FORMAT_MULTIPLIERS: Record<string, number> = {
   story: 0.4,
 };
 
-// Calibration constant for velocity normalization — tuned to dataset percentiles
-const VELOCITY_SCALING = 0.001;
+// Calibration constant for velocity normalization.
+// Previous value (0.001) made sigmoid inputs ≈ 0, so velocity was always ~0.5.
+// At 0.15, a post with 500 likes / 10h / 10K followers scores ~0.62 (above midpoint),
+// while a viral post (5K likes / 5h / 10K followers) scores ~0.88.
+const VELOCITY_SCALING = 0.15;
 
 function sigmoid(x: number): number {
   return 1 / (1 + Math.exp(-x));
