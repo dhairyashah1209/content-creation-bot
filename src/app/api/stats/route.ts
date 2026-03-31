@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db/client";
-import { rawPosts, trendSnapshots } from "@/db/schema";
-import { eq, gte, and, sql, desc } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
@@ -9,57 +8,61 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const topicId = searchParams.get("topicId");
 
-  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-  // Build topic filter for raw_posts queries
-  const activeConditions = [
-    gte(rawPosts.postedAt, sevenDaysAgo),
-    eq(rawPosts.isStale, false),
-  ];
-  const staleConditions = [
-    gte(rawPosts.postedAt, sevenDaysAgo),
-    eq(rawPosts.isStale, true),
-  ];
-  if (topicId) {
-    activeConditions.push(eq(rawPosts.topicId, topicId));
-    staleConditions.push(eq(rawPosts.topicId, topicId));
-  }
+  // Use raw SQL to guarantee correct DISTINCT ON behavior and accurate counts.
+  // The CTE picks the latest snapshot per post, then we aggregate over it.
+  const rows: {
+    total_active: string;
+    viral: string;
+    rising: string;
+    avg_score: string;
+    stale_count: string;
+  }[] = await db.execute(sql`
+    WITH latest_snap AS (
+      SELECT DISTINCT ON (ts.post_id)
+        ts.post_id,
+        ts.trend_score,
+        ts.trend_tier
+      FROM trend_snapshots ts
+      ORDER BY ts.post_id, ts.snapshot_time DESC
+    )
+    SELECT
+      count(*) FILTER (
+        WHERE rp.is_stale = false AND ls.post_id IS NOT NULL
+      )::text AS total_active,
+      count(*) FILTER (
+        WHERE rp.is_stale = false AND ls.trend_tier = 'viral'
+      )::text AS viral,
+      count(*) FILTER (
+        WHERE rp.is_stale = false AND ls.trend_tier = 'rising'
+      )::text AS rising,
+      coalesce(
+        round(
+          avg(CAST(ls.trend_score AS numeric)) FILTER (
+            WHERE rp.is_stale = false AND ls.post_id IS NOT NULL
+          ), 1
+        )::text,
+        '0'
+      ) AS avg_score,
+      count(*) FILTER (WHERE rp.is_stale = true)::text AS stale_count
+    FROM raw_posts rp
+    LEFT JOIN latest_snap ls ON rp.id = ls.post_id
+    WHERE rp.posted_at >= ${sevenDaysAgo}::timestamptz
+      AND rp.topic_id IS NOT NULL
+      ${topicId ? sql`AND rp.topic_id = ${topicId}::uuid` : sql``}
+  `);
 
-  // Latest snapshot per post (subquery)
-  const latestSnapshots = db
-    .selectDistinctOn([trendSnapshots.postId], {
-      postId: trendSnapshots.postId,
-      trendScore: trendSnapshots.trendScore,
-      trendTier: trendSnapshots.trendTier,
-    })
-    .from(trendSnapshots)
-    .orderBy(trendSnapshots.postId, desc(trendSnapshots.snapshotTime))
-    .as("latest_snapshots");
-
-  // Count viral, rising, and compute avg score across ALL active posts (no limit)
-  const [tierStats] = await db
-    .select({
-      total: sql<number>`count(*)::int`,
-      viral: sql<number>`count(*) FILTER (WHERE ${latestSnapshots.trendTier} = 'viral')::int`,
-      rising: sql<number>`count(*) FILTER (WHERE ${latestSnapshots.trendTier} = 'rising')::int`,
-      avgScore: sql<string>`coalesce(round(avg(CAST(${latestSnapshots.trendScore} AS numeric)), 1)::text, '0')`,
-    })
-    .from(rawPosts)
-    .innerJoin(latestSnapshots, eq(rawPosts.id, latestSnapshots.postId))
-    .where(and(...activeConditions));
-
-  // Count stale posts
-  const [{ staleCount }] = await db
-    .select({ staleCount: sql<number>`count(*)::int` })
-    .from(rawPosts)
-    .where(and(...staleConditions));
+  const row = rows[0];
+  const totalActive = parseInt(row.total_active, 10);
+  const staleCount = parseInt(row.stale_count, 10);
 
   return NextResponse.json({
-    totalActive: tierStats.total,
-    viral: tierStats.viral,
-    rising: tierStats.rising,
-    avgScore: tierStats.avgScore,
+    totalActive,
+    viral: parseInt(row.viral, 10),
+    rising: parseInt(row.rising, 10),
+    avgScore: row.avg_score,
     staleCount,
-    totalPosts: tierStats.total + staleCount,
+    totalPosts: totalActive + staleCount,
   });
 }

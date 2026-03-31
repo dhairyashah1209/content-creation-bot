@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db/client";
 import { rawPosts, trendSnapshots } from "@/db/schema";
-import { eq, desc, gte, and, sql } from "drizzle-orm";
+import { eq, desc, gte, and, sql, isNotNull } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +21,7 @@ export async function GET(req: NextRequest) {
     const conditions = [
       gte(rawPosts.postedAt, sevenDaysAgo),
       eq(rawPosts.isStale, true),
+      isNotNull(rawPosts.topicId),
     ];
     if (topicId) conditions.push(eq(rawPosts.topicId, topicId));
 
@@ -100,6 +101,7 @@ export async function GET(req: NextRequest) {
   const conditions = [
     gte(rawPosts.postedAt, sevenDaysAgo),
     eq(rawPosts.isStale, false),
+    isNotNull(rawPosts.topicId),
   ];
 
   if (topicId) conditions.push(eq(rawPosts.topicId, topicId));
