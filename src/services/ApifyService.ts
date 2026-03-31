@@ -19,9 +19,11 @@ export interface ApifyPost {
 }
 
 const HASHTAG_ACTOR = "apify~instagram-hashtag-scraper";
-const POST_ACTOR = "apify~instagram-post-scraper";
+// General-purpose Instagram scraper — accepts directUrls for individual post scraping.
+// NOT apify~instagram-post-scraper which requires `username` (profile scraping only).
+const POST_ACTOR = "apify~instagram-scraper";
 const MAX_POSTS_PER_RUN = 20;
-// Max posts per individual post-scraper Apify run — keeps each run small and fast
+// Max posts per individual scraper run — keeps each run small and fast
 const MAX_POSTS_PER_BATCH = 50;
 
 export class ApifyService {
@@ -58,13 +60,8 @@ export class ApifyService {
 
   /**
    * Refresh engagement metrics for specific posts by their Instagram URLs.
-   * Uses the instagram-post-scraper actor which accepts direct post URLs.
-   * Limited to MAX_POSTS_TO_REFRESH per call to control Apify credit usage.
-   */
-  /**
-   * Refresh engagement metrics for specific posts by their Instagram URLs.
-   * Uses the instagram-post-scraper actor which accepts direct post URLs.
-   * Processes in batches of MAX_POSTS_PER_BATCH to keep individual Apify runs manageable.
+   * Uses the general instagram-scraper actor with directUrls input.
+   * Processes in batches of MAX_POSTS_PER_BATCH to keep individual runs manageable.
    */
   async refreshPostsByUrl(
     postUrls: string[],
@@ -82,7 +79,11 @@ export class ApifyService {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ directUrls: batch }),
+          body: JSON.stringify({
+            directUrls: batch,
+            resultsType: "posts",
+            resultsLimit: batch.length,
+          }),
         }
       );
 
@@ -95,7 +96,7 @@ export class ApifyService {
         data: { id: string; defaultDatasetId: string; status: string };
       };
 
-      const items = await this.pollAndFetch(runData.id, runData.defaultDatasetId, batch.length, 120_000);
+      const items = await this.pollAndFetch(runData.id, runData.defaultDatasetId, batch.length, 180_000);
       allResults.push(...items.filter((item) => item?.id));
     }
 
